@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **JSON-LD export dropped entity properties, validity windows and relationship weights** (fixes #1961) by @pkupt
+  - `_entity_to_jsonld` copied only `metadata` and read confidence from the top level only, so it always wrote the `1.0` default; `_relationship_to_jsonld` dropped `weight` and the validity window. Both now emit `semantica:properties` (`@json`), `semantica:validFrom`/`semantica:validUntil` (`xsd:dateTime`) and `semantica:weight`; confidence falls back to `properties["confidence"]` then `metadata["confidence"]`. New `tests/test_json_exporter.py`
+
 - **`calculate_pagerank` rebuilt the adjacency once per node for a plain graph dictionary** (fixes #1842)
   - `_get_filtered_neighbors` called `build_adjacency(graph, directed=True)` for every node, making neighbour resolution O(N * (N + E)). `calculate_pagerank` now builds it once before the node loop and passes it in through a new optional `adjacency` argument; scores are unchanged. New `tests/kg/test_centrality_pagerank_adjacency_reuse.py`
 

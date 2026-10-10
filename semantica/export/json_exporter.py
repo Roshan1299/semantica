@@ -611,9 +611,25 @@ class JSONExporter:
                 "semantica": SEMANTICA_NS,
                 "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
                 "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+                "xsd": "http://www.w3.org/2001/XMLSchema#",
                 "semantica:metadata": {
                     "@id": "semantica:metadata",
                     "@type": "@json",
+                },
+                "semantica:properties": {
+                    "@id": "semantica:properties",
+                    "@type": "@json",
+                },
+                "semantica:validFrom": {
+                    "@id": "semantica:validFrom",
+                    "@type": "xsd:dateTime",
+                },
+                "semantica:validUntil": {
+                    "@id": "semantica:validUntil",
+                    "@type": "xsd:dateTime",
+                },
+                "semantica:weight": {
+                    "@id": "semantica:weight",
                 },
             },
             # Minted from the graph's own content rather than the wall clock
@@ -679,11 +695,21 @@ class JSONExporter:
         # that look official but do not exist (#1146). The node is always a
         # semantica:Entity and the label travels as semantica:type, exactly
         # how _relationship_to_jsonld has always carried the relationship type.
+        # Confidence may live at the top level, in properties, or in metadata
+        # depending on how the entity was built; take the first that is present.
+        confidence = entity.get("confidence")
+        if confidence is None:
+            confidence = (entity.get("properties") or {}).get("confidence")
+        if confidence is None:
+            confidence = (entity.get("metadata") or {}).get("confidence")
+        if confidence is None:
+            confidence = 1.0
+
         jsonld = {
             "@id": entity_id,
             "@type": "semantica:Entity",
             "semantica:text": entity.get("text") or entity.get("label", ""),
-            "semantica:confidence": entity.get("confidence", 1.0),
+            "semantica:confidence": confidence,
         }
         entity_type = entity.get("type")
         if entity_type:
@@ -693,6 +719,17 @@ class JSONExporter:
         # semantica:metadata keeps the whole dict one rdf:JSON literal.
         if "metadata" in entity:
             jsonld["semantica:metadata"] = entity["metadata"]
+
+        # properties carries the payload-specific fields (decision category,
+        # outcome, reasoning, ...); it is not the same as metadata.
+        if entity.get("properties"):
+            jsonld["semantica:properties"] = entity["properties"]
+
+        # Temporal validity, as xsd:dateTime terms so parsers can order them.
+        if entity.get("valid_from"):
+            jsonld["semantica:validFrom"] = entity["valid_from"]
+        if entity.get("valid_until"):
+            jsonld["semantica:validUntil"] = entity["valid_until"]
 
         return jsonld
 
@@ -738,5 +775,14 @@ class JSONExporter:
         # Add metadata if present
         if "metadata" in rel:
             jsonld["semantica:metadata"] = rel["metadata"]
+
+        # Relationship weight and temporal validity are first-class data, not
+        # metadata; dropping them made the JSON-LD round trip lossy.
+        if rel.get("weight") is not None:
+            jsonld["semantica:weight"] = rel["weight"]
+        if rel.get("valid_from"):
+            jsonld["semantica:validFrom"] = rel["valid_from"]
+        if rel.get("valid_until"):
+            jsonld["semantica:validUntil"] = rel["valid_until"]
 
         return jsonld
